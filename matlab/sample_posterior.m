@@ -25,7 +25,7 @@ k = @(x, y) s_dev^2 * exp(-1/2 * (norm(x - y) / l)^2);
 % Randomly generate some training points to restrict the posterior.
 X_train = rand(train_size, 1) * x_max;
 
-% Gnerate input points to sample.
+% Generate points to sample from the posterior distribution.
 X_test = linspace(0, x_max, test_size)';
 
 % Generate random noise is the training data.
