@@ -30,17 +30,19 @@ def rbf(x, y, stddev=1):
 
 class GP(object):
     def __init__(self, kernel):
+        ''' Create a Gaussian Process with given kernel function. '''
         self.kernel = kernel
-        self.X = np.array([]) # Input vector
-        self.Y = np.array([]) # Output vector
-
+        self.X = np.array([])  # Input vector
+        self.Y = np.array([])  # Output vector
 
     def observe(self, X, Y):
+        ''' Take an observation of (X, Y) input-output pairs. '''
         self.X = np.append(self.X, np.asarray(X))
         self.Y = np.append(self.Y, np.asarray(Y))
 
-
     def predict(self, X):
+        ''' Predict the output values at the input values contained in X with
+            covariance information. '''
         X = np.asarray(X)
         if len(self.X) == 0:
             K = covmat(self.kernel, X, X)
@@ -63,48 +65,67 @@ class GP(object):
 
         return mean, K
 
-
     def sample(self, X):
+        ''' Sample the GP at input values X and incorporate the results back
+            into the GP. This is useful the generating a random function. '''
         mean, cov = self.predict(X)
         Y = np.random.multivariate_normal(mean, cov)
         self.observe(X, Y)
 
+    def plot(self, span=None, step=0.2, sigma=0):
+        ''' Plot the GP.'''
 
-    def plot(self, interp_step_size=0.2):
-        Xi, Yi = spline(self.X, self.Y, interp_step_size)
+        # If span is not passed, it defaults to the range between the minimum
+        # and maximum input values.
+        if span is None:
+            span = (np.min(self.X), np.max(self.X))
 
-        # Plot the spline.
-        plt.plot(Xi, Yi)
+        # Predict values over the range of interest. We ensure that all of our
+        # actual input values are also predicted to ensure accurate plotting.
+        Xi = np.arange(span[0], span[1], step)
+        Xi = np.append(Xi, self.X)
+        Xi.sort()
+
+        mean, cov = self.predict(Xi)
+
+        # Plot the mean of the learned function.
+        _, ax = plt.subplots()
+        ax.plot(Xi, mean)
 
         # Plot sampled points.
         plt.plot(self.X, self.Y, 'x')
 
-        _, cov = self.predict(Xi)
-        dev = np.sqrt(np.diag(cov))
-        print(dev)
-        # foo, upper = spline(Xi, Yi + 2 * dev, interp_step_size)
-        # _, lower = spline(Xi, Yi - 2 * dev, interp_step_size)
-        # plt.plot(foo, upper)
-        # plt.plot(foo, lower)
+        if sigma > 0:
+            # Plot uncertainty bounds of the learned function. We explicitly
+            # use np.abs(...) because small negative values may appear instead
+            # of zeros due to numerical error.
+            stddev = np.sqrt(np.abs(np.diag(cov)))
+            upper = mean + 2 * stddev
+            lower = mean - 2 * stddev
+            ax.fill_between(Xi, lower, upper, color=(0.8, 0.8, 0.8))
 
+        plt.title('Gaussian Process')
         plt.show()
 
 
 def main():
-    num_samples = 100 # Number of random samples.
-    sample_step = 0.5 # Step size of index variable.
+    sample_span = (0, 10)
+    sample_step = 1
 
-    # Input/index points.
-    X = np.arange(0, num_samples * sample_step, sample_step)
-
+    # Test a predict based on some observed data.
     gp1 = GP(se)
     gp1.observe([1, 2, 3, 4, 5], [1, 2, 3, 4, 5])
     pred, sdev = gp1.predict([2.5])
     print('Predict {} at {} with std. dev. of {}.'.format(float(pred), 2.5, sdev))
 
+    # Input/index points.
+    # X = np.arange(sample_span[0], sample_span[1], sample_step)
+    X = np.random.rand(5) * 10
+
+    # Plot the function based a function randomly sampled from the GP.
     gp2 = GP(se)
     gp2.sample(X)
-    gp2.plot()
+    gp2.plot(sample_span)
 
 
 if __name__ == '__main__':
