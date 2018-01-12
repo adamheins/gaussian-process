@@ -3,20 +3,27 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-G = 9.81  # Gravity
-L = 1     # Length
-K = 1     # Damping
+grav = 9.81  # Gravity
+length = 1     # Length
+mass = 1     # Mass
+inertia = mass * length ** 2
+
+K = np.array([1, 1])
+
+# Operating point.
+REF = np.array([np.pi, 0])
 
 
-def u(t):
+def u(x):
     ''' Control signal. '''
-    return np.array([0, 0])
+    # Standard proportional controller.
+    return -np.dot(K, g(x))
 
 
 def f(t, x):
     ''' State-update function: dx/dt = f(x). '''
     x1dot = x[1]
-    x2dot = - G / L * np.sin(x[0]) - K * x[1]
+    x2dot = -grav / length * np.sin(x[0]) + u(x)
     return np.array([x1dot, x2dot])
 
 
@@ -26,7 +33,8 @@ def g(x):
 
 
 def main():
-    x0 = np.array([np.pi/2, 0])
+    # Subtract operating point to put us into reference coordinates.
+    x0 = np.array([np.pi / 2, 0]) - REF
 
     # Times are in seconds.
     dt = 0.01
@@ -39,6 +47,7 @@ def main():
 
     ts = np.array([t0])
     ys = np.array([g(x0)])
+    us = np.array([u(x0)])
 
     # Simulate the system.
     while solver.successful() and solver.t + dt <= t1:
@@ -49,12 +58,18 @@ def main():
         # Record results.
         ts = np.append(ts, t)
         ys = np.append(ys, [y], axis=0)
+        us = np.append(us, u(x))
+
+    # Add operating point back.
+    ys = ys + np.tile(REF, (ys.shape[0], 1))
 
     # Plot the results.
     plt.plot(ts, ys[:, 0], label='Angle')
     plt.plot(ts, ys[:, 1], label='Angular velocity')
+    plt.plot(ts, us, label='Torque')
     plt.xlabel('Time (s)')
     plt.ylabel('Outputs')
+    plt.title('Inverted Pendulum')
     plt.legend()
     plt.grid()
     plt.show()
