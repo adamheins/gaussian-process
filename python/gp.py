@@ -58,10 +58,8 @@ class GP(object):
             # Calculate mean and covariance of the posterior conditional
             # distribution.
             K = K22 - K21 * K11_inv * K12
-            mean = K21 * K11_inv * np.transpose(np.asmatrix(self.Y))
-
-            # Convert from matrix to array.
-            mean = mean.A1
+            mean = np.dot(K21 * K11_inv, self.Y).reshape(len(X))
+            mean = np.asarray(mean).reshape(len(X))
 
         return mean, K
 
@@ -125,7 +123,7 @@ def main():
     # Plot the function based a function randomly sampled from the GP.
     gp2 = GP(se)
     gp2.sample(X)
-    gp2.plot(sample_span)
+    gp2.plot(sample_span, sigma=2)
 
 
 if __name__ == '__main__':
