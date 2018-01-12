@@ -3,12 +3,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-A = np.eye(2)
-B = np.zeros((2, 2))
-C = np.eye(2)
-
-G = 9.81
-L = 1
+G = 9.81  # Gravity
+L = 1     # Length
+K = 1     # Damping
 
 
 def u(t):
@@ -19,13 +16,13 @@ def u(t):
 def f(t, x):
     ''' State-update function: dx/dt = f(x). '''
     x1dot = x[1]
-    x2dot = - G / L * np.sin(x[0])
+    x2dot = - G / L * np.sin(x[0]) - K * x[1]
     return np.array([x1dot, x2dot])
 
 
 def g(x):
     ''' Output function: y = g(x) '''
-    return np.dot(C, x)
+    return x
 
 
 def main():
@@ -34,7 +31,7 @@ def main():
     # Times are in seconds.
     dt = 0.01
     t0 = 0
-    t1 = 5
+    t1 = 10
 
     # Setup numerical integrator with 4th order Runge-Kutta solver.
     solver = integrate.ode(f).set_integrator('dopri5')
@@ -65,5 +62,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
