@@ -53,8 +53,9 @@ class GaussianProcess(object):
             covariance information. '''
         X = np.asarray(X)
         if len(self.X) == 0:
-            K = covmat(self.kernel, X, X)
-            mean = np.zeros_like(X)
+            # K = covmat(self.kernel, X, X)
+            # mean = np.squeeze(np.zeros_like(X))
+            return None, None
         else:
             K11 = covmat(self.kernel, self.X, self.X)
             K12 = covmat(self.kernel, self.X, X)
@@ -66,7 +67,7 @@ class GaussianProcess(object):
             # Calculate mean and covariance of the posterior conditional
             # distribution.
             K = K22 - K21 * K11_inv * K12
-            mean = np.dot(K21 * K11_inv, self.Y)
+            mean = np.squeeze(np.asarray(np.dot(K21 * K11_inv, self.Y)))
 
         return mean, K
 

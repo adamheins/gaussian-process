@@ -15,9 +15,9 @@ MASS = 1
 INERTIA = MASS * LENGTH ** 2
 
 # Times are in seconds.
-DT = 0.01
+DT = 0.05
 T0 = 0
-TF = 10
+TF = 5
 
 # Initial condition.
 X0 = np.array([np.pi / 2, 0])
@@ -82,28 +82,29 @@ def main():
     t = T0
     u = 0
 
-    ts = np.array(t)
+    ts = np.array([t])
     ys = np.array([y])
-    us = np.array(u)
+    us = np.array([u])
+    ms = np.array([[0, 0]])
 
     gp = GaussianProcess(SEKernel)
 
     # Simulate the system.
     while t <= TF:
-        if t > DT * 10:
-            m, k = gp.predict([[ x[0], x[1], u ]])
-            print('Mean = {}'.format(m))
-
-        # Nominal model.
-        _, yn = step(x, DT, u)
-
         # Simulate the system for one time step.
         d = disturbance(DIST_MEAN, DIST_SIGMA)
         n = noise(NOISE_MEAN, NOISE_SIGMA)
-        x, y = step(x, DT, u, d, n)
+        x0 = x
 
+        # Predict the output.
+        m, _ = gp.predict([[ x0[0], x0[1], u ]])
+        if m is None:
+            m = [0, 0]
 
-        gp.observe([[ x[0], x[1], u ]], [y - yn])
+        x, y = step(x0, DT, u, d, n)
+
+        # Record what the output actually was.
+        gp.observe([[ x0[0], x0[1], u ]], [y])
 
         # Calculate control input for next step based on system output.
         u = control(y)
@@ -114,9 +115,11 @@ def main():
         ts = np.append(ts, t)
         ys = np.append(ys, [y], axis=0)
         us = np.append(us, u)
+        ms = np.append(ms, [m], axis=0)
 
     # Add operating point back to get back to normal coordinates.
     ys = ys + np.tile(REF, (ys.shape[0], 1))
+    ms = ms + np.tile(REF, (ys.shape[0], 1))
 
     print(ys[-1, :])
 
@@ -125,6 +128,9 @@ def main():
     plt.plot(ts, ys[:, 0], label='Angle (rad)')
     plt.plot(ts, ys[:, 1], label='Angular Velocity (rad/s)')
     plt.plot(ts, us, label=u'Applied Torque (N·m)')
+
+    plt.plot(ts, ms[:, 0], label='Predicted angle')
+    # plt.plot(ts, ms[:, 1], label='Predicted velocity')
 
     plt.xlabel('Time (s)')
     plt.ylabel('Signals')
