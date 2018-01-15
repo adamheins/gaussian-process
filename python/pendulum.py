@@ -14,6 +14,11 @@ K = np.array([1, 1])
 REF = np.array([np.pi, 0])
 
 
+def d(mean, sigma):
+    ''' Normally distributed disturbance. '''
+    return np.random.normal(mean, sigma)
+
+
 def u(x):
     ''' Control signal. '''
     # Standard proportional controller.
@@ -23,7 +28,7 @@ def u(x):
 def f(t, x):
     ''' State-update function: dx/dt = f(x). '''
     x1dot = x[1]
-    x2dot = -grav / length * np.sin(x[0]) + u(x)
+    x2dot = -grav / length * np.sin(x[0])
     return np.array([x1dot, x2dot])
 
 
@@ -42,7 +47,7 @@ def main():
     t1 = 10
 
     # Setup numerical integrator with 4th order Runge-Kutta solver.
-    solver = integrate.ode(f).set_integrator('dopri5')
+    solver = integrate.ode(f).set_integrator('dopri5', nsteps=1000)
     solver.set_initial_value(x0, t0)
 
     ts = np.array([t0])
@@ -54,6 +59,11 @@ def main():
         t = solver.t + dt
         x = solver.integrate(t)
         y = g(x)
+
+        # u as function of y
+        # add disturbance
+        # set as new initial condition for the solver
+        # would also be nice to blackbox x, only get y
 
         # Record results.
         ts = np.append(ts, t)
