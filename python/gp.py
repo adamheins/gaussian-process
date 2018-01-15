@@ -18,17 +18,17 @@ def covmat(k, X, Y):
     return np.matrix([[k(x, y) for y in Y] for x in X])
 
 
-def se(x, y, stddev=1, lscale=1):
+def SEKernel(x, y, stddev=1, lscale=1):
     ''' Squared exponential function kernel. '''
-    return stddev**2 * np.exp(-0.5 * ((x - y) / lscale)**2)
+    return stddev**2 * np.exp(-0.5 * (np.linalg.norm(x - y) / lscale)**2)
 
 
-def rbf(x, y, stddev=1):
+def RBFKernel(x, y, stddev=1):
     ''' Radial basis function kernel. '''
-    return np.exp(-(x - y)**2 / (2 * stddev**2))
+    return np.exp(-np.linalg.norm(x - y)**2 / (2 * stddev**2))
 
 
-class GP(object):
+class GaussianProcess(object):
     def __init__(self, kernel):
         ''' Create a Gaussian Process with given kernel function. '''
         self.kernel = kernel
@@ -37,8 +37,16 @@ class GP(object):
 
     def observe(self, X, Y):
         ''' Take an observation of (X, Y) input-output pairs. '''
-        self.X = np.append(self.X, np.asarray(X))
-        self.Y = np.append(self.Y, np.asarray(Y))
+        # TODO check if len(X) == len(Y)
+        X = np.asarray(X)
+        Y = np.asarray(Y)
+
+        if self.X.size == 0:
+            self.X = X
+            self.Y = Y
+        else:
+            self.X = np.append(self.X, X, axis=0)
+            self.Y = np.append(self.Y, Y, axis=0)
 
     def predict(self, X):
         ''' Predict the output values at the input values contained in X with
@@ -58,8 +66,7 @@ class GP(object):
             # Calculate mean and covariance of the posterior conditional
             # distribution.
             K = K22 - K21 * K11_inv * K12
-            mean = np.dot(K21 * K11_inv, self.Y).reshape(len(X))
-            mean = np.asarray(mean).reshape(len(X))
+            mean = np.dot(K21 * K11_inv, self.Y)
 
         return mean, K
 
@@ -110,8 +117,8 @@ def main():
     sample_span = (0, 10)
     sample_step = 1
 
-    # Test a predict based on some observed data.
-    gp1 = GP(se)
+    # Test a prediction based on some observed data.
+    gp1 = GaussianProcess(SEKernel)
     gp1.observe([1, 2, 3, 4, 5], [1, 2, 3, 4, 5])
     pred, sdev = gp1.predict([2.5])
     print('Predict {} at {} with std. dev. of {}.'.format(float(pred), 2.5, sdev))
@@ -121,7 +128,7 @@ def main():
     X = np.random.rand(5) * 10
 
     # Plot the function based a function randomly sampled from the GP.
-    gp2 = GP(se)
+    gp2 = GaussianProcess(SEKernel)
     gp2.sample(X)
     gp2.plot(sample_span, sigma=2)
 

@@ -5,7 +5,10 @@ import scipy.integrate as integrate
 import numpy as np
 import matplotlib.pyplot as plt
 
+from gp import GaussianProcess, SEKernel
 
+
+# Physical pendulum parameters.
 GRAV = 9.81
 LENGTH = 1
 MASS = 1
@@ -20,8 +23,8 @@ TF = 10
 X0 = np.array([np.pi / 2, 0])
 
 NOISE_MEAN = 0
-NOISE_SIGMA = 0.01
-DIST_MEAN = 0
+NOISE_SIGMA = 0.00
+DIST_MEAN = 1
 DIST_SIGMA = 1
 
 # Controller gains.
@@ -59,17 +62,11 @@ def out(x):
     return x
 
 
-def step(x, u, dt):
+def step(x, dt, u, d=disturbance(0, 0), n=noise(0, 0)):
     ''' Simulate the system for a single timestep. '''
-    # Model uncertainty.
-    d = disturbance(DIST_MEAN, DIST_SIGMA)
-
     # Integrate the system over a single timestep.
     x = integrate.odeint(f, x, [0, dt], args=(u + d,))
-    x = x[1, :]
-
-    # Sensor noise.
-    n = noise(NOISE_MEAN, NOISE_SIGMA)
+    x = x[-1, :]
 
     # System output.
     y = out(x) + n
@@ -89,10 +86,24 @@ def main():
     ys = np.array([y])
     us = np.array(u)
 
+    gp = GaussianProcess(SEKernel)
+
     # Simulate the system.
     while t <= TF:
+        if t > DT * 10:
+            m, k = gp.predict([[ x[0], x[1], u ]])
+            print('Mean = {}'.format(m))
+
+        # Nominal model.
+        _, yn = step(x, DT, u)
+
         # Simulate the system for one time step.
-        x, y = step(x, u, DT)
+        d = disturbance(DIST_MEAN, DIST_SIGMA)
+        n = noise(NOISE_MEAN, NOISE_SIGMA)
+        x, y = step(x, DT, u, d, n)
+
+
+        gp.observe([[ x[0], x[1], u ]], [y - yn])
 
         # Calculate control input for next step based on system output.
         u = control(y)
@@ -107,6 +118,8 @@ def main():
     # Add operating point back to get back to normal coordinates.
     ys = ys + np.tile(REF, (ys.shape[0], 1))
 
+    print(ys[-1, :])
+
     # Plot the results.
     plt.plot([T0, TF], [REF[0], REF[0]], label='Reference Angle (rad)')
     plt.plot(ts, ys[:, 0], label='Angle (rad)')
@@ -119,6 +132,8 @@ def main():
     plt.legend()
     plt.grid()
     plt.show()
+
+    # gp.plot()
 
 
 if __name__ == '__main__':
