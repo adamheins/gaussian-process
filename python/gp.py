@@ -1,19 +1,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy import interpolate as interp
-
-
-def spline(X, Y, interp_step_size):
-    query_step = (X[1] - X[0]) * interp_step_size
-    query_pts = np.arange(X[0], X[-1] + query_step, query_step)
-    spline = interp.InterpolatedUnivariateSpline(X, Y)
-    return query_pts, spline(query_pts)
 
 
 def covmat(k, X, Y):
     ''' Create a covariance matrix using the kernel function k and vectors of
         random variables X and Y. '''
-    return np.matrix([[k(x, y) for y in Y] for x in X])
+    return np.array([[k(x, y) for y in Y] for x in X])
 
 
 def SEKernel(x, y, stddev=1, lscale=1):
@@ -48,37 +40,35 @@ class GaussianProcess(object):
             self.X = np.append(self.X, X, axis=0)
             self.Y = np.append(self.Y, Y, axis=0)
 
-    def predict(self, X):
+    def predict(self, X, outdim=1):
         ''' Predict the output values at the input values contained in X with
             covariance information. '''
+        # Output dimensions can be specified to handle the case in which no
+        # data has yet been observed.
+
         X = np.asarray(X)
+
         if len(self.X) == 0:
-            # K = covmat(self.kernel, X, X)
-            # mean = np.squeeze(np.zeros_like(X))
-            return None, None
+            K = covmat(self.kernel, X, X)
+            return np.squeeze(np.zeros((outdim, X.shape[0]))), K
         else:
             K11 = covmat(self.kernel, self.X, self.X)
             K12 = covmat(self.kernel, self.X, X)
             K21 = covmat(self.kernel, X, self.X)
             K22 = covmat(self.kernel, X, X)
 
-            K11_inv = np.linalg.inv(K11)
-
             # Do Cholesky decomposition after adding a small positive value
             # along the diagonal to ensure positive definiteness. Otherwise
             # this goes quite numerically unstable.
-            L = np.linalg.cholesky(K11 + np.eye(K11.shape[0]) * 0.01)
+            L = np.linalg.cholesky(K11 + np.eye(K11.shape[0]) * 0.0001)
 
             a = np.linalg.solve(L.T, np.linalg.solve(L, self.Y))
-            v = np.linalg.solve(L, K21.T)
-
-            mean = np.squeeze(np.asarray(np.dot(K21, a))) # TODO should really be transposed here...
-            K = K22 - np.dot(v.T, v)
+            v = np.linalg.solve(L, K12)
 
             # Calculate mean and covariance of the posterior conditional
             # distribution.
-           # K = K22 - K21 * K11_inv * K12
-            # mean = np.squeeze(np.asarray(np.dot(K21 * K11_inv, self.Y)))
+            mean = np.squeeze(np.dot(K21, a))
+            K = K22 - np.dot(v.T, v)
 
         return mean, K
 

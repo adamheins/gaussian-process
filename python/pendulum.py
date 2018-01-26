@@ -93,9 +93,7 @@ def main():
     # Simulate the system.
     while t < TF:
         # Predict the output.
-        m, _ = gp.predict([[ x[0], x[1], u ]])
-        if m is None:
-            m = [0, 0]
+        m, _ = gp.predict([[ x[0], x[1], u ]], outdim=2)
 
         # Simulate the system for one time step.
         d = disturbance(DIST_MEAN, DIST_SIGMA)
