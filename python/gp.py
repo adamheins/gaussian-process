@@ -1,5 +1,3 @@
-from functools import partial
-
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import interpolate as interp
@@ -37,9 +35,11 @@ class GaussianProcess(object):
 
     def observe(self, X, Y):
         ''' Take an observation of (X, Y) input-output pairs. '''
-        # TODO check if len(X) == len(Y)
         X = np.asarray(X)
         Y = np.asarray(Y)
+
+        if X.shape[0] != Y.shape[0]:
+            raise ValueError('First dimension of X and Y must be equal.')
 
         if self.X.size == 0:
             self.X = X
@@ -64,10 +64,21 @@ class GaussianProcess(object):
 
             K11_inv = np.linalg.inv(K11)
 
+            # Do Cholesky decomposition after adding a small positive value
+            # along the diagonal to ensure positive definiteness. Otherwise
+            # this goes quite numerically unstable.
+            L = np.linalg.cholesky(K11 + np.eye(K11.shape[0]) * 0.01)
+
+            a = np.linalg.solve(L.T, np.linalg.solve(L, self.Y))
+            v = np.linalg.solve(L, K21.T)
+
+            mean = np.squeeze(np.asarray(np.dot(K21, a))) # TODO should really be transposed here...
+            K = K22 - np.dot(v.T, v)
+
             # Calculate mean and covariance of the posterior conditional
             # distribution.
-            K = K22 - K21 * K11_inv * K12
-            mean = np.squeeze(np.asarray(np.dot(K21 * K11_inv, self.Y)))
+           # K = K22 - K21 * K11_inv * K12
+            # mean = np.squeeze(np.asarray(np.dot(K21 * K11_inv, self.Y)))
 
         return mean, K
 

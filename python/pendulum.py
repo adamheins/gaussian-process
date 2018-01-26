@@ -17,18 +17,18 @@ INERTIA = MASS * LENGTH ** 2
 # Times are in seconds.
 DT = 0.05
 T0 = 0
-TF = 5
+TF = 10
 
 # Initial condition.
-X0 = np.array([np.pi / 2, 0])
+X0 = np.array([np.pi * 0.75, 0])
 
 NOISE_MEAN = 0
 NOISE_SIGMA = 0.00
-DIST_MEAN = 1
-DIST_SIGMA = 1
+DIST_MEAN = 0
+DIST_SIGMA = 0
 
 # Controller gains.
-K = np.array([1, 1])
+K = np.array([5, 1])
 
 # Operating point.
 REF = np.array([np.pi, 0])
@@ -86,21 +86,21 @@ def main():
     ys = np.array([y])
     us = np.array([u])
     ms = np.array([[0, 0]])
+    ds = np.array([0])
 
     gp = GaussianProcess(SEKernel)
 
     # Simulate the system.
-    while t <= TF:
+    while t < TF:
+        # Predict the output.
+        m, _ = gp.predict([[ x[0], x[1], u ]])
+        if m is None:
+            m = [0, 0]
+
         # Simulate the system for one time step.
         d = disturbance(DIST_MEAN, DIST_SIGMA)
         n = noise(NOISE_MEAN, NOISE_SIGMA)
         x0 = x
-
-        # Predict the output.
-        m, _ = gp.predict([[ x0[0], x0[1], u ]])
-        if m is None:
-            m = [0, 0]
-
         x, y = step(x0, DT, u, d, n)
 
         # Record what the output actually was.
@@ -116,6 +116,7 @@ def main():
         ys = np.append(ys, [y], axis=0)
         us = np.append(us, u)
         ms = np.append(ms, [m], axis=0)
+        ds = np.append(ds, d)
 
     # Add operating point back to get back to normal coordinates.
     ys = ys + np.tile(REF, (ys.shape[0], 1))
@@ -124,13 +125,15 @@ def main():
     print(ys[-1, :])
 
     # Plot the results.
-    plt.plot([T0, TF], [REF[0], REF[0]], label='Reference Angle (rad)')
+    plt.plot([T0, TF], [REF[0], REF[0]], label='Reference angle (rad)')
     plt.plot(ts, ys[:, 0], label='Angle (rad)')
-    plt.plot(ts, ys[:, 1], label='Angular Velocity (rad/s)')
-    plt.plot(ts, us, label=u'Applied Torque (N·m)')
+    plt.plot(ts, ms[:, 0], label='Predicted angle (rad)')
 
-    plt.plot(ts, ms[:, 0], label='Predicted angle')
-    # plt.plot(ts, ms[:, 1], label='Predicted velocity')
+    plt.plot(ts, ys[:, 1], label='Angular velocity (rad/s)')
+    # plt.plot(ts, us, label=u'Applied Torque (N·m)')
+
+    plt.plot(ts, ms[:, 1], label='Predicted angular velocity (rad/s)')
+    # plt.plot(ts, ds, label='Disturbance')
 
     plt.xlabel('Time (s)')
     plt.ylabel('Signals')
