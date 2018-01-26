@@ -50,7 +50,11 @@ class GaussianProcess(object):
 
         if len(self.X) == 0:
             K = covmat(self.kernel, X, X)
-            return np.squeeze(np.zeros((outdim, X.shape[0]))), K
+
+            # If we haven't seen any output yet, assume 0-mean.
+            mean = np.squeeze(np.zeros((outdim, X.shape[0])))
+
+            return mean, K
         else:
             K11 = covmat(self.kernel, self.X, self.X)
             K12 = covmat(self.kernel, self.X, X)

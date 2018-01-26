@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 # coding=utf-8
+from __future__ import print_function
+
+import time
+import sys
 
 import scipy.integrate as integrate
 import numpy as np
@@ -15,9 +19,9 @@ MASS = 1
 INERTIA = MASS * LENGTH ** 2
 
 # Times are in seconds.
-DT = 0.05
+DT = 0.1
 T0 = 0
-TF = 10
+TF = 8
 
 # Initial condition.
 X0 = np.array([np.pi * 0.75, 0])
@@ -28,7 +32,11 @@ DIST_MEAN = 0
 DIST_SIGMA = 0
 
 # Controller gains.
-K = np.array([5, 1])
+kp = 5
+kd = 1
+K = np.array([[0,  0],
+              [kp, kd]])
+C = np.eye(2)
 
 # Operating point.
 REF = np.array([np.pi, 0])
@@ -44,68 +52,79 @@ def noise(mean, sigma):
     return np.random.normal(mean, sigma)
 
 
-def control(y):
-    ''' Control signal. '''
-    # Simple PD controller.
-    return -np.dot(K, y)
-
-
 def f(x, t, u):
     ''' State-update function: dx/dt = f(x). '''
     x1dot = x[1]
-    x2dot = -GRAV / LENGTH * np.sin(x[0]) + u
-    return np.array([x1dot, x2dot])
+    x2dot = -GRAV / LENGTH * np.sin(x[0])
+    return np.array([x1dot, x2dot]) + u
 
 
-def out(x):
-    ''' Output function: y = g(x) '''
-    return x
+def step(x, dt, u):
 
-
-def step(x, dt, u, d=disturbance(0, 0), n=noise(0, 0)):
     ''' Simulate the system for a single timestep. '''
     # Integrate the system over a single timestep.
-    x = integrate.odeint(f, x, [0, dt], args=(u + d,))
+    x = integrate.odeint(f, x, [0, dt], args=(u,))
     x = x[-1, :]
 
     # System output.
-    y = out(x) + n
+    y = np.dot(C, x)
 
     return x, y
+
+
+def print_sim_time(t):
+    if np.abs(t - int(t + 0.5)) < DT / 2.0:
+        print('\rt = {}s'.format(t), end='')
+        sys.stdout.flush()
+
+
+def plot_sigma_bounds(t, m, k, coeff, color):
+    upper = m + coeff * k
+    lower = m - coeff * k
+    plt.fill_between(t, lower, upper, color=color)
 
 
 def main():
     # Initialize the system.
     # Subtract operating point to put us into reference coordinates.
     x = X0 - REF
-    y = out(x)
+    y = np.dot(C, x)
     t = T0
-    u = 0
+    u = [0, 0]
 
     ts = np.array([t])
     ys = np.array([y])
     us = np.array([u])
-    ms = np.array([[0, 0]])
-    ds = np.array([0])
 
-    gp = GaussianProcess(SEKernel)
+    m1s = np.array([0])
+    k1s = np.array([1]) # NOTE: This matches the stddev in the kernel
+
+    m2s = np.array([0])
+    k2s = np.array([1])
+
+    start_time = time.time()
+    elapsed_time = np.array([0])
+
+    gp1 = GaussianProcess(SEKernel)
+    gp2 = GaussianProcess(SEKernel)
 
     # Simulate the system.
     while t < TF:
         # Predict the output.
-        m, _ = gp.predict([[ x[0], x[1], u ]], outdim=2)
+        inp = [[x[0], x[1], u[1]]]
+        m1, k1 = gp1.predict(inp)
+        m2, k2 = gp2.predict(inp)
 
         # Simulate the system for one time step.
-        d = disturbance(DIST_MEAN, DIST_SIGMA)
-        n = noise(NOISE_MEAN, NOISE_SIGMA)
         x0 = x
-        x, y = step(x0, DT, u, d, n)
+        x, y = step(x0, DT, u)
 
         # Record what the output actually was.
-        gp.observe([[ x0[0], x0[1], u ]], [y])
+        gp1.observe([[ x0[0], x0[1], u[1] ]], [[ y[0] ]])
+        gp2.observe([[ x0[0], x0[1], u[1] ]], [[ y[1] ]])
 
         # Calculate control input for next step based on system output.
-        u = control(y)
+        u = np.dot(-K, y)
 
         t = t + DT
 
@@ -113,30 +132,60 @@ def main():
         ts = np.append(ts, t)
         ys = np.append(ys, [y], axis=0)
         us = np.append(us, u)
-        ms = np.append(ms, [m], axis=0)
-        ds = np.append(ds, d)
+
+        m1s = np.append(m1s, m1)
+        k1s = np.append(k1s, np.sqrt(k1))
+
+        m2s = np.append(m2s, m2)
+        k2s = np.append(k2s, np.sqrt(k2))
+
+        elapsed_time = np.append(elapsed_time, time.time() - start_time)
+
+        print_sim_time(t)
+    print()
 
     # Add operating point back to get back to normal coordinates.
     ys = ys + np.tile(REF, (ys.shape[0], 1))
-    ms = ms + np.tile(REF, (ys.shape[0], 1))
-
-    print(ys[-1, :])
+    m1s = m1s + np.ones(m1s.shape[0]) * REF[0]
 
     # Plot the results.
-    plt.plot([T0, TF], [REF[0], REF[0]], label='Reference angle (rad)')
-    plt.plot(ts, ys[:, 0], label='Angle (rad)')
-    plt.plot(ts, ms[:, 0], label='Predicted angle (rad)')
+    plt.figure(1)
+    plt.subplot(211)
+    plt.plot([T0, TF], [REF[0], REF[0]], label='Reference')
+    plt.plot(ts, ys[:, 0], label='Actual')
+    plt.plot(ts, m1s, label='Predicted')
 
-    plt.plot(ts, ys[:, 1], label='Angular velocity (rad/s)')
+    plot_sigma_bounds(ts, m1s, k1s, 3, (0.9,) * 3)
+    plot_sigma_bounds(ts, m1s, k1s, 2, (0.8,) * 3)
+    plot_sigma_bounds(ts, m1s, k1s, 1, (0.7,) * 3)
+
+    plt.title('Inverted Pendulum')
+    plt.ylabel('Angle (rad)')
+    plt.legend()
+    plt.grid()
+
+    plt.subplot(212)
+    plt.plot([T0, TF], [REF[1], REF[1]], label='Reference')
+    plt.plot(ts, ys[:, 1], label='Actual')
+    plt.plot(ts, m2s, label='Predicted')
+
+    plot_sigma_bounds(ts, m2s, k2s, 3, (0.9,) * 3)
+    plot_sigma_bounds(ts, m2s, k2s, 2, (0.8,) * 3)
+    plot_sigma_bounds(ts, m2s, k2s, 1, (0.7,) * 3)
+
     # plt.plot(ts, us, label=u'Applied Torque (N·m)')
 
-    plt.plot(ts, ms[:, 1], label='Predicted angular velocity (rad/s)')
-    # plt.plot(ts, ds, label='Disturbance')
-
     plt.xlabel('Time (s)')
-    plt.ylabel('Signals')
-    plt.title('Inverted Pendulum')
+    plt.ylabel('Angular velocity (rad/s)')
     plt.legend()
+    plt.grid()
+    plt.show()
+
+    plt.figure(2)
+    plt.plot(ts, elapsed_time)
+    plt.xlabel('Simulation time (s)')
+    plt.ylabel('Real time (s)')
+    plt.title('Real time vs. Simulation time')
     plt.grid()
     plt.show()
 
