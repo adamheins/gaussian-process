@@ -8,6 +8,15 @@ def covmat(k, X, Y):
     return np.array([[k(x, y) for y in Y] for x in X])
 
 
+def covnew(k, X1, X2):
+    ''' Calculate the covariance matrices for new data, accounting for the
+        existence of old data. '''
+    K12 = covmat(k, X1, X2)
+    K21 = K12.T
+    K22 = covmat(k, X2, X2)
+    return K12, K21, K22
+
+
 def SEKernel(x, y, stddev=1, lscale=1):
     ''' Squared exponential function kernel. '''
     return stddev**2 * np.exp(-0.5 * (np.linalg.norm(x - y) / lscale)**2)
@@ -26,6 +35,7 @@ class GaussianProcess(object):
         self.Y = np.array([])  # Output vector
 
         self.observed_new_data = False
+        self.K11 = np.array([[]])
         self.L = np.array([[]])
 
     def observe(self, X, Y):
@@ -39,7 +49,20 @@ class GaussianProcess(object):
         if self.X.size == 0:
             self.X = X
             self.Y = Y
+            self.K11 = covmat(self.kernel, X, X)
         else:
+            K12, K21, K22 = covnew(self.kernel, self.X, X)
+
+            n1 = self.X.shape[0]
+            n2 = X.shape[0]
+
+            K11 = np.zeros((n1 + n2, n1 + n2))
+            K11[:n1, :n1] = self.K11
+            K11[:n1, n1:] = K12
+            K11[n1:, :n1] = K21
+            K11[n1:, n1:] = K22
+
+            self.K11 = K11
             self.X = np.append(self.X, X, axis=0)
             self.Y = np.append(self.Y, Y, axis=0)
 
@@ -64,19 +87,16 @@ class GaussianProcess(object):
             # If we've seen new data since the last time we calculated K11, we
             # need to recalculate it.
             if self.observed_new_data:
-                K11 = covmat(self.kernel, self.X, self.X)
-
                 # Do Cholesky decomposition after adding a small positive value
                 # along the diagonal to ensure positive definiteness. Otherwise
                 # this goes quite numerically unstable.
-                self.L = np.linalg.cholesky(K11 + np.eye(K11.shape[0]) * 0.0001)
+                eps_diag = np.eye(self.K11.shape[0]) * 0.0001
+                self.L = np.linalg.cholesky(self.K11 + eps_diag)
 
                 self.observed_new_data = False
 
             L = self.L
-            K12 = covmat(self.kernel, self.X, X)
-            K21 = K12.T
-            K22 = covmat(self.kernel, X, X)
+            K12, K21, K22 = covnew(self.kernel, self.X, X)
 
             a = np.linalg.solve(L.T, np.linalg.solve(L, self.Y))
             v = np.linalg.solve(L, K12)

@@ -21,7 +21,7 @@ MASS = 1
 INERTIA = MASS * LENGTH ** 2
 
 # Times are in seconds.
-DT = 0.1
+DT = 0.05
 T0 = 0
 TF = 8
 
