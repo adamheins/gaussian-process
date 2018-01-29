@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# coding=utf-8
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -148,27 +151,38 @@ class GaussianProcess(object):
             ax.fill_between(Xi, lower, upper, color=(0.8, 0.8, 0.8))
 
         plt.title('Gaussian Process')
-        plt.show()
+
+        return plt
+
+
+def ex1():
+    ''' First example: Test a prediction based on some observed data. '''
+    gp = GaussianProcess(SEKernel)
+    gp.observe([1, 2, 2.4, 3, 4, 5], [1, 2, 2.4, 3, 4, 5])
+
+    sample_point = 2.5
+    pred, sdev = gp.predict([sample_point])
+    pred = float(pred)
+    sdev = float(sdev)
+
+    print(u'Predict {:.4f} at {} with σ = {:.8f}.'.format(pred, sample_point, sdev))
+
+    gp.plot((-3, 8), sigma=2)
+    plt.plot(np.arange(-3, 8), np.arange(-3, 8))
+    plt.show()
+
+
+def ex2():
+    ''' Second example: Plot a function randomly sampled from the GP. '''
+    X = np.random.rand(5) * 10
+    gp = GaussianProcess(SEKernel)
+    gp.sample(X)
+    gp.plot((0, 10), sigma=2).show()
 
 
 def main():
-    sample_span = (0, 10)
-    sample_step = 1
-
-    # Test a prediction based on some observed data.
-    gp1 = GaussianProcess(SEKernel)
-    gp1.observe([1, 2, 3, 4, 5], [1, 2, 3, 4, 5])
-    pred, sdev = gp1.predict([2.5])
-    print('Predict {} at {} with std. dev. of {}.'.format(float(pred), 2.5, sdev))
-
-    # Input/index points.
-    # X = np.arange(sample_span[0], sample_span[1], sample_step)
-    X = np.random.rand(5) * 10
-
-    # Plot the function based a function randomly sampled from the GP.
-    gp2 = GaussianProcess(SEKernel)
-    gp2.sample(X)
-    gp2.plot(sample_span, sigma=2)
+    ex1()
+    ex2()
 
 
 if __name__ == '__main__':
