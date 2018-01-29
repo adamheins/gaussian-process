@@ -25,6 +25,9 @@ class GaussianProcess(object):
         self.X = np.array([])  # Input vector
         self.Y = np.array([])  # Output vector
 
+        self.observed_new_data = False
+        self.L = np.array([[]])
+
     def observe(self, X, Y):
         ''' Take an observation of (X, Y) input-output pairs. '''
         X = np.asarray(X)
@@ -39,6 +42,8 @@ class GaussianProcess(object):
         else:
             self.X = np.append(self.X, X, axis=0)
             self.Y = np.append(self.Y, Y, axis=0)
+
+        self.observed_new_data = True
 
     def predict(self, X, outdim=1):
         ''' Predict the output values at the input values contained in X with
@@ -56,15 +61,22 @@ class GaussianProcess(object):
 
             return mean, K
         else:
-            K11 = covmat(self.kernel, self.X, self.X)
-            K12 = covmat(self.kernel, self.X, X)
-            K21 = covmat(self.kernel, X, self.X)
-            K22 = covmat(self.kernel, X, X)
+            # If we've seen new data since the last time we calculated K11, we
+            # need to recalculate it.
+            if self.observed_new_data:
+                K11 = covmat(self.kernel, self.X, self.X)
 
-            # Do Cholesky decomposition after adding a small positive value
-            # along the diagonal to ensure positive definiteness. Otherwise
-            # this goes quite numerically unstable.
-            L = np.linalg.cholesky(K11 + np.eye(K11.shape[0]) * 0.0001)
+                # Do Cholesky decomposition after adding a small positive value
+                # along the diagonal to ensure positive definiteness. Otherwise
+                # this goes quite numerically unstable.
+                self.L = np.linalg.cholesky(K11 + np.eye(K11.shape[0]) * 0.0001)
+
+                self.observed_new_data = False
+
+            L = self.L
+            K12 = covmat(self.kernel, self.X, X)
+            K21 = K12.T
+            K22 = covmat(self.kernel, X, X)
 
             a = np.linalg.solve(L.T, np.linalg.solve(L, self.Y))
             v = np.linalg.solve(L, K12)
