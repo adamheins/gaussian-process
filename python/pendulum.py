@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 from mpl_toolkits.mplot3d import Axes3D
 
-from gp import GaussianProcess, SEKernel
+from gp import GaussianProcess, SEKernel, plot_sigma_bounds
 
 
 # Physical pendulum parameters.
@@ -78,12 +78,6 @@ def print_sim_time(t):
     if np.abs(t - int(t + 0.5)) < DT / 2.0:
         print('\rt = {}s'.format(t), end='')
         sys.stdout.flush()
-
-
-def plot_sigma_bounds(t, m, k, coeff, color):
-    upper = m + coeff * k
-    lower = m - coeff * k
-    plt.fill_between(t, lower, upper, color=color)
 
 
 def main():

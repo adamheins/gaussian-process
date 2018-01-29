@@ -5,6 +5,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
+def plot_sigma_bounds(x, m, k, n, color):
+    ''' Color the region within n standard deviations of the mean. '''
+    upper = m + n * k
+    lower = m - n * k
+    plt.fill_between(x, lower, upper, color=color)
+
+
 def covmat(k, X, Y):
     ''' Create a covariance matrix using the kernel function k and vectors of
         random variables X and Y. '''
@@ -118,7 +125,7 @@ class GaussianProcess(object):
         Y = np.random.multivariate_normal(mean, cov)
         self.observe(X, Y)
 
-    def plot(self, span=None, step=0.2, sigma=0):
+    def plot(self, span=None, step=0.2, sigmas=[0]):
         ''' Plot the GP.'''
 
         # If span is not passed, it defaults to the range between the minimum
@@ -141,14 +148,14 @@ class GaussianProcess(object):
         # Plot sampled points.
         plt.plot(self.X, self.Y, 'x')
 
-        if sigma > 0:
-            # Plot uncertainty bounds of the learned function. We explicitly
-            # use np.abs(...) because small negative values may appear instead
-            # of zeros due to numerical error.
-            stddev = np.sqrt(np.abs(np.diag(cov)))
-            upper = mean + 2 * stddev
-            lower = mean - 2 * stddev
-            ax.fill_between(Xi, lower, upper, color=(0.8, 0.8, 0.8))
+        # We explicitly use np.abs(...) because small negative values may
+        # appear instead of zeros due to numerical error.
+        stddev = np.sqrt(np.abs(np.diag(cov)))
+        colors = np.linspace(0.9, 0.7, len(sigmas))
+
+        for sigma, color in zip(sorted(sigmas, reverse=True), colors):
+            if sigma > 0:
+                plot_sigma_bounds(Xi, mean, stddev, sigma, (color,)*3)
 
         plt.title('Gaussian Process')
 
@@ -167,7 +174,7 @@ def ex1():
 
     print(u'Predict {:.4f} at {} with σ = {:.8f}.'.format(pred, sample_point, sdev))
 
-    gp.plot((-3, 8), sigma=2)
+    gp.plot((-3, 8), sigmas=[1, 2, 3])
     plt.plot(np.arange(-3, 8), np.arange(-3, 8))
     plt.show()
 
@@ -177,7 +184,7 @@ def ex2():
     X = np.random.rand(5) * 10
     gp = GaussianProcess(SEKernel)
     gp.sample(X)
-    gp.plot((0, 10), sigma=2).show()
+    gp.plot((0, 10), sigmas=[1, 2, 3]).show()
 
 
 def main():
