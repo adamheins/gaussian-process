@@ -28,6 +28,9 @@ TF = 8
 # Initial condition.
 X0 = np.array([np.pi * 0.75, 0])
 
+# Assumed standard deviation of signal for Gaussian process regression.
+SIGNAL_SIGMA = 1.0
+
 NOISE_MEAN = 0
 NOISE_SIGMA = 0.00
 DIST_MEAN = 0
@@ -93,16 +96,16 @@ def main():
     us = np.array([u])
 
     m1s = np.array([0])
-    k1s = np.array([1]) # NOTE: This matches the stddev in the kernel
+    k1s = np.array([SIGNAL_SIGMA])
 
     m2s = np.array([0])
-    k2s = np.array([1])
+    k2s = np.array([SIGNAL_SIGMA])
 
     start_time = time.time()
     elapsed_time = np.array([0])
 
-    gp1 = GaussianProcess(SEKernel)
-    gp2 = GaussianProcess(SEKernel)
+    gp1 = GaussianProcess(SEKernel, signal_sigma=SIGNAL_SIGMA)
+    gp2 = GaussianProcess(SEKernel, signal_sigma=SIGNAL_SIGMA)
 
     # Simulate the system.
     while t < TF:
@@ -188,6 +191,7 @@ def main():
 
     # Plot angle uncertainty over a portion of the state-space, with input u
     # fixed at 0.
+    print('Plotting sample of state-space...')
     fig = plt.figure(3)
     ax = fig.add_subplot(111, projection='3d')
 

@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
 # coding=utf-8
+from functools import partial
 
 import numpy as np
 import matplotlib.pyplot as plt
+
+
+# A small value.
+EPSILON = 0.0001
 
 
 def plot_sigma_bounds(x, m, k, n, color):
@@ -27,20 +32,23 @@ def covnew(k, X1, X2):
     return K12, K21, K22
 
 
-def SEKernel(x, y, stddev=1, lscale=1):
+def SEKernel(x, y, sigma=1, lscale=1):
     ''' Squared exponential function kernel. '''
-    return stddev**2 * np.exp(-0.5 * (np.linalg.norm(x - y) / lscale)**2)
+    return sigma**2 * np.exp(-0.5 * (np.linalg.norm(x - y) / lscale)**2)
 
 
-def RBFKernel(x, y, stddev=1):
+def RBFKernel(x, y, sigma=1):
     ''' Radial basis function kernel. '''
-    return np.exp(-np.linalg.norm(x - y)**2 / (2 * stddev**2))
+    return np.exp(-np.linalg.norm(x - y)**2 / (2 * sigma**2))
 
 
 class GaussianProcess(object):
-    def __init__(self, kernel):
+    def __init__(self, kernel, noise_sigma=0, signal_sigma=1, **kwargs):
         ''' Create a Gaussian Process with given kernel function. '''
-        self.kernel = kernel
+        # Additional keyword arguments are passed along to the kernel function.
+        self.kernel = partial(kernel, sigma=signal_sigma, **kwargs)
+        self.noise_sigma = noise_sigma
+
         self.X = np.array([])  # Input vector
         self.Y = np.array([])  # Output vector
 
@@ -100,8 +108,9 @@ class GaussianProcess(object):
                 # Do Cholesky decomposition after adding a small positive value
                 # along the diagonal to ensure positive definiteness. Otherwise
                 # this goes quite numerically unstable.
-                eps_diag = np.eye(self.K11.shape[0]) * 0.0001
-                self.L = np.linalg.cholesky(self.K11 + eps_diag)
+                noise = max(EPSILON, self.noise_sigma)
+                noise_mat = np.eye(self.K11.shape[0]) * noise
+                self.L = np.linalg.cholesky(self.K11 + noise_mat)
 
                 self.observed_new_data = False
 
