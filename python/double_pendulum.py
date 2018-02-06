@@ -2,12 +2,12 @@
 # coding=utf-8
 from __future__ import print_function
 
-import sys
 
 import numpy as np
 import pygame
 
 from control import System, SystemAnimation
+from util import print_sim_time, tupadd
 
 
 # Physical pendulum parameters.
@@ -28,11 +28,6 @@ X0 = np.array([np.pi * 0.25, 0, np.pi / 2, 0])
 
 # Operating point.
 REF = np.array([0, 0, 0, 0])
-
-
-def tupadd(a, b):
-    ''' Convenience functions for adding tuples element-wise. '''
-    return tuple([x + y for x, y in zip(a, b)])
 
 
 def f(x, t, r):
@@ -95,13 +90,7 @@ def render(screen, sys):
     end_pos = render_pendulum(screen, start_pos, length, sys.x[0], color)
     render_pendulum(screen, end_pos, length, sys.x[2], color)
 
-    print_sim_time(sys.t)
-
-
-def print_sim_time(t):
-    if np.abs(t - int(t + 0.5)) < DT / 2.0:
-        print('\rt = {:.1f}s'.format(round(t)), end='')
-        sys.stdout.flush()
+    print_sim_time(sys.t, DT)
 
 
 def main():

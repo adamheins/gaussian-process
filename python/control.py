@@ -15,6 +15,7 @@ class System(object):
         self.x = x0
         self.y = y0
         self.t = t0
+        self.ref = ref0
 
         self.ts = np.array([t0])
         self.refs = np.array([ref0])
@@ -30,6 +31,7 @@ class System(object):
         self.y = self.g(self.x, self.t, ref)
 
         self.t += self.dt
+        self.ref = ref
 
         # Record results.
         self.ts = np.append(self.ts, self.t)

@@ -3,15 +3,15 @@
 from __future__ import print_function
 
 import time
-import sys
 
-import scipy.integrate as integrate
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm
 from mpl_toolkits.mplot3d import Axes3D
 
+from control import System
 from gp import GaussianProcess, SEKernel, plot_sigma_bounds
+from util import print_sim_time
 
 
 # Physical pendulum parameters.
@@ -41,20 +41,9 @@ kp = 5
 kd = 1
 K = np.array([[0,  0],
               [kp, kd]])
-C = np.eye(2)
 
 # Operating point.
 REF = np.array([np.pi, 0])
-
-
-def disturbance(mean, sigma):
-    ''' Normally distributed disturbance. '''
-    return np.random.normal(mean, sigma)
-
-
-def noise(mean, sigma):
-    ''' Normally distributed sensor noise. '''
-    return np.random.normal(mean, sigma)
 
 
 def f(x, t, u):
@@ -64,36 +53,14 @@ def f(x, t, u):
     return np.array([x1dot, x2dot]) + u
 
 
-def step(x, dt, u):
-
-    ''' Simulate the system for a single timestep. '''
-    # Integrate the system over a single timestep.
-    x = integrate.odeint(f, x, [0, dt], args=(u,))
-    x = x[-1, :]
-
-    # System output.
-    y = np.dot(C, x)
-
-    return x, y
-
-
-def print_sim_time(t):
-    if np.abs(t - int(t + 0.5)) < DT / 2.0:
-        print('\rt = {}s'.format(t), end='')
-        sys.stdout.flush()
+def g(x, t, u):
+    ''' System output. '''
+    return x
 
 
 def main():
     # Initialize the system.
-    # Subtract operating point to put us into reference coordinates.
-    x = X0 - REF
-    y = np.dot(C, x)
-    t = T0
-    u = [0, 0]
-
-    ts = np.array([t])
-    ys = np.array([y])
-    us = np.array([u])
+    sys = System(f, g, DT, X0 - REF, T0)
 
     m1s = np.array([0])
     k1s = np.array([SIGNAL_SIGMA])
@@ -108,30 +75,23 @@ def main():
     gp2 = GaussianProcess(SEKernel, signal_sigma=SIGNAL_SIGMA)
 
     # Simulate the system.
-    while t < TF:
+    while sys.t < TF:
+        x = sys.x
+
         # Predict the output.
-        inp = [[x[0], x[1], u[1]]]
-        m1, k1 = gp1.predict(inp)
-        m2, k2 = gp2.predict(inp)
+        input_observations = [[x[0], x[1], sys.ref[1]]]
+        m1, k1 = gp1.predict(input_observations)
+        m2, k2 = gp2.predict(input_observations)
 
-        # Simulate the system for one time step.
-        x0 = x
-        x, y = step(x0, DT, u)
+        u = np.dot(-K, sys.y)
+        sys.step(u)
 
-        # Record what the output actually was.
-        gp1.observe([[ x0[0], x0[1], u[1] ]], [[ y[0] ]])
-        gp2.observe([[ x0[0], x0[1], u[1] ]], [[ y[1] ]])
-
-        # Calculate control input for next step based on system output.
-        u = np.dot(-K, y)
-
-        t = t + DT
+        # Observe the actual output.
+        input_observations = [[x[0], x[1], u[1]]]
+        gp1.observe(input_observations, [[sys.y[0]]])
+        gp2.observe(input_observations, [[sys.y[1]]])
 
         # Record results.
-        ts = np.append(ts, t)
-        ys = np.append(ys, [y], axis=0)
-        us = np.append(us, u)
-
         m1s = np.append(m1s, m1)
         k1s = np.append(k1s, np.sqrt(k1))
 
@@ -140,12 +100,14 @@ def main():
 
         elapsed_time = np.append(elapsed_time, time.time() - start_time)
 
-        print_sim_time(t)
+        print_sim_time(sys.t, DT)
     print()
 
     # Add operating point back to get back to normal coordinates.
-    ys = ys + np.tile(REF, (ys.shape[0], 1))
+    ys = sys.ys + np.tile(REF, (sys.ys.shape[0], 1))
     m1s = m1s + np.ones(m1s.shape[0]) * REF[0]
+
+    ts = sys.ts
 
     # Plot the results.
     plt.figure(1)
